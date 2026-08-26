@@ -1,4 +1,39 @@
-def execute_pipeline(reports: list[str]):
+import os
+import json
+
+from dotenv import load_dotenv
+from rich.console import Console
+from rich.panel import Panel
+from rich.json import JSON
+from rich.theme import Theme
+
+from agents.coordinator import run_coordinator_agent
+from agents.allocator import run_allocator_agent
+from agents.safety import run_safety_agent
+
+
+
+# ---------------------------------------------------------
+# SETUP
+# ---------------------------------------------------------
+
+load_dotenv()
+
+custom_theme = Theme(
+    {
+        "highlight": "bold cyan",
+    }
+)
+
+console = Console(theme=custom_theme)
+
+
+
+# ---------------------------------------------------------
+# PIPELINE
+# ---------------------------------------------------------
+
+def execute_pipeline(reports: list[str]) -> bool:
 
     demo = os.getenv(
         "CRISIS_DEMO_MODE",
@@ -20,8 +55,9 @@ def execute_pipeline(reports: list[str]):
         )
 
     try:
+
         # -------------------------------------------------
-        # 1. COORDINATOR
+        # 1. GROUND COORDINATOR
         # -------------------------------------------------
 
         with console.status(
@@ -43,7 +79,7 @@ def execute_pipeline(reports: list[str]):
         )
 
         # -------------------------------------------------
-        # 2. ALLOCATOR
+        # 2. RESOURCE ALLOCATOR
         # -------------------------------------------------
 
         with console.status(
@@ -68,13 +104,21 @@ def execute_pipeline(reports: list[str]):
         # 3. SAFETY GATE
         # -------------------------------------------------
 
-        audit = run_safety_agent(
-            plan,
-            demand.get("landing_constraints", ""),
-            api_key
-        )
+        with console.status(
+            "[bold magenta]"
+            "Safety Guard auditing plan..."
+            "[/bold magenta]"
+        ):
+            audit = run_safety_agent(
+                plan,
+                demand.get("landing_constraints", ""),
+                api_key
+            )
 
+        # -------------------------------------------------
         # APPROVED FIRST TIME
+        # -------------------------------------------------
+
         if audit.get("status") == "APPROVED":
 
             console.print(
@@ -85,16 +129,27 @@ def execute_pipeline(reports: list[str]):
                 )
             )
 
+            console.print(
+                "\n[bold green]"
+                "MISSION CLEARED FOR DISPATCH"
+                "[/bold green]"
+            )
+
             return True
 
         # -------------------------------------------------
-        # REJECTED → SELF HEAL
+        # UNKNOWN RESPONSE → FAIL CLOSED
         # -------------------------------------------------
 
         if audit.get("status") != "REJECTED":
+
             raise RuntimeError(
                 f"Unknown safety decision: {audit}"
             )
+
+        # -------------------------------------------------
+        # SAFETY REJECTION
+        # -------------------------------------------------
 
         console.print(
             Panel(
@@ -117,17 +172,22 @@ def execute_pipeline(reports: list[str]):
         )
 
         # -------------------------------------------------
-        # 4. RE-PLAN
+        # 4. SELF-HEAL / RE-PLAN
         # -------------------------------------------------
 
-        healed_plan = run_allocator_agent(
-            demand,
-            api_key,
-            feedback=audit.get(
-                "instruction",
-                "Correct safety violation"
+        with console.status(
+            "[bold yellow]"
+            "Resource Allocator correcting plan..."
+            "[/bold yellow]"
+        ):
+            healed_plan = run_allocator_agent(
+                demand,
+                api_key,
+                feedback=audit.get(
+                    "instruction",
+                    "Correct safety violation"
+                )
             )
-        )
 
         console.print(
             Panel(
@@ -138,16 +198,24 @@ def execute_pipeline(reports: list[str]):
         )
 
         # -------------------------------------------------
-        # 5. RE-AUDIT
+        # 5. FINAL SAFETY RE-AUDIT
         # -------------------------------------------------
 
-        final_audit = run_safety_agent(
-            healed_plan,
-            demand.get("landing_constraints", ""),
-            api_key
-        )
+        with console.status(
+            "[bold magenta]"
+            "Safety Guard re-auditing corrected plan..."
+            "[/bold magenta]"
+        ):
+            final_audit = run_safety_agent(
+                healed_plan,
+                demand.get("landing_constraints", ""),
+                api_key
+            )
 
-        # THIS CHECK WAS MISSING
+        # -------------------------------------------------
+        # FINAL APPROVAL
+        # -------------------------------------------------
+
         if final_audit.get("status") == "APPROVED":
 
             console.print(
@@ -158,9 +226,18 @@ def execute_pipeline(reports: list[str]):
                 )
             )
 
+            console.print(
+                "\n[bold green]"
+                "MISSION CLEARED FOR DISPATCH"
+                "[/bold green]"
+            )
+
             return True
 
-        # FAIL CLOSED
+        # -------------------------------------------------
+        # FINAL REJECTION → FAIL CLOSED
+        # -------------------------------------------------
+
         console.print(
             Panel(
                 JSON(json.dumps(final_audit)),
@@ -170,13 +247,17 @@ def execute_pipeline(reports: list[str]):
         )
 
         console.print(
-            "[bold red]"
+            "\n[bold red]"
             "MISSION BLOCKED — safety requirements "
             "still not satisfied."
             "[/bold red]"
         )
 
         return False
+
+    # -----------------------------------------------------
+    # SYSTEM FAILURE → FAIL CLOSED
+    # -----------------------------------------------------
 
     except Exception as exc:
 
@@ -189,3 +270,33 @@ def execute_pipeline(reports: list[str]):
         )
 
         return False
+
+
+
+# ---------------------------------------------------------
+# RUN DEMO
+# ---------------------------------------------------------
+
+if __name__ == "__main__":
+
+    sample_reports = [
+        (
+            "Severe flooding reported in Sector 4. "
+            "Approximately 200 civilians are isolated."
+        ),
+        (
+            "Ground access is unavailable. "
+            "Emergency water and trauma supplies required."
+        ),
+        (
+            "Runway is flooded. "
+            "Helicopter landing area remains accessible."
+        )
+    ]
+
+    success = execute_pipeline(sample_reports)
+
+    if success:
+        raise SystemExit(0)
+
+    raise SystemExit(1)
