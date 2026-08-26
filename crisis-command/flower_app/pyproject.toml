@@ -1,12 +1,12 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "crisis-command"
 version = "0.1.0"
 description = "Multi-agent emergency dispatch system with deterministic safety validation and autonomous replanning."
-license = "Apache-2.0"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 
 dependencies = [
@@ -16,21 +16,14 @@ dependencies = [
     "rich>=13.7.1"
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = [
-    "flower_app",
-    "agents"
-]
+[tool.setuptools]
+packages = ["agents", "flower_app"]
+py-modules = ["main"]
 
 [tool.flwr.app]
 publisher = "YOUR_FLOWER_USERNAME"
 display-name = "Crisis Command"
 flwr-version-target = "1.35.0"
-fab-include = [
-    "flower_app/**/*.py",
-    "agents/**/*.py",
-    "main.py"
-]
 
 [tool.flwr.app.config.agent]
 input = """
