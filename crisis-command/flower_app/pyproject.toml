@@ -1,29 +1,34 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "crisis-command"
 version = "0.1.0"
-description = "Multi-agent emergency dispatch system with deterministic safety validation and autonomous replanning."
+description = "Multi-agent emergency dispatch system with safety validation and autonomous replanning."
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 
 dependencies = [
-    "flwr>=1.35.0,<2.0",
-    "requests>=2.31.0",
-    "python-dotenv>=1.0.1",
-    "rich>=13.7.1"
+    "flwr>=1.35.0,<2.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.1",
+    "rich>=13.7.1"
 ]
 
-[tool.setuptools]
-packages = ["agents", "flower_app"]
-py-modules = ["main"]
+[tool.hatch.build.targets.wheel]
+packages = ["."]
 
 [tool.flwr.app]
-publisher = "YOUR_FLOWER_USERNAME"
+publisher = "reddyb114@gmail.com"
 display-name = "Crisis Command"
 flwr-version-target = "1.35.0"
+
+fab-include = [
+    "flower_app/**/*.py",
+    "agents/**/*.py",
+    "main.py"
+]
 
 [tool.flwr.app.config.agent]
 input = """
@@ -31,7 +36,8 @@ Severe flooding reported in Sector 4.
 Approximately 200 civilians are isolated.
 Ground access is unavailable.
 Emergency water and trauma supplies required.
-Runway is flooded. Helicopter landing area remains accessible.
+Runway is flooded.
+Helicopter landing area remains accessible.
 """
 
 [tool.flwr.app.config.crisis]
