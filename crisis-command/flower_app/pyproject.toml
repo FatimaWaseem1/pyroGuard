@@ -20,7 +20,7 @@ dependencies = [
 packages = ["."]
 
 [tool.flwr.app]
-publisher = "reddyb114@gmail.com"
+publisher = "fatimawaseem1111@gmail.com"
 display-name = "Crisis Command"
 flwr-version-target = "1.35.0"
 
