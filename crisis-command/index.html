@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PYROGUARD | 6-Agent Mission Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@600;800;900&family=Inter:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #04070d;
+            --panel: #09101d;
+            --panel-border: rgba(56, 189, 248, 0.15);
+            --cyan: #38bdf8;
+            --red: #f43f5e;
+            --orange: #f97316;
+            --yellow: #eab308;
+            --green: #10b981;
+            --purple: #a855f7;
+            --text: #f8fafc;
+            --text-muted: #64748b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; padding: 14px; min-height: 100vh; display: flex; flex-direction: column; gap: 12px; overflow-x: hidden; }
+
+        header { display: flex; justify-content: space-between; align-items: center; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px 18px; box-shadow: 0 0 25px rgba(0,0,0,0.5); }
+        .logo { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 1.1rem; letter-spacing: 2px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+        .logo span { font-size: 0.65rem; background: rgba(168, 85, 247, 0.2); color: var(--purple); border: 1px solid var(--purple); padding: 2px 6px; border-radius: 4px; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+
+        .btn-action { background: rgba(56, 189, 248, 0.1); border: 1px solid var(--cyan); color: var(--cyan); font-family: 'Orbitron', sans-serif; font-size: 0.68rem; font-weight: 700; padding: 8px 14px; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .btn-action:hover { background: rgba(56, 189, 248, 0.25); box-shadow: 0 0 12px var(--cyan); }
+
+        .btn-launch { background: linear-gradient(135deg, #f43f5e 0%, #ea580c 100%); color: #fff; font-family: 'Orbitron', sans-serif; font-weight: 800; font-size: 0.75rem; padding: 9px 18px; border: none; border-radius: 6px; cursor: pointer; letter-spacing: 1px; box-shadow: 0 0 15px rgba(244, 63, 94, 0.4); transition: all 0.2s; }
+        .btn-launch:hover { transform: translateY(-1px); box-shadow: 0 0 25px rgba(244, 63, 94, 0.7); }
+        .btn-launch:disabled { opacity: 0.4; cursor: not-allowed; transform: none; filter: grayscale(1); }
+
+        .grid-top { display: grid; grid-template-columns: 360px 1fr 280px; gap: 12px; height: 260px; }
+
+        .viewport { background: #000; border: 1px solid var(--panel-border); border-radius: 8px; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+        .viewport-bar { background: rgba(9, 16, 29, 0.9); border-bottom: 1px solid var(--panel-border); padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--cyan); display: flex; justify-content: space-between; align-items: center; z-index: 5; }
+
+        .cctv-selector { background: #04070d; border: 1px solid var(--panel-border); color: var(--cyan); font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; padding: 2px 4px; border-radius: 4px; outline: none; }
+        .live-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: flash 1s infinite alternate; }
+
+        .fire-chamber { flex-grow: 1; position: relative; overflow: hidden; background: #000; }
+        .cctv-stream-container { width: 100%; height: 100%; position: relative; }
+        .cctv-video { width: 100%; height: 100%; object-fit: cover; border: 0; }
+
+        .cam-overlay { position: absolute; inset: 0; border: 1px solid rgba(255,255,255,0.05); pointer-events: none; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%); background-size: 100% 4px; z-index: 4; }
+        .rec-tag { position: absolute; top: 10px; right: 10px; background: rgba(244, 63, 94, 0.8); color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; font-weight: 700; padding: 2px 6px; border-radius: 3px; z-index: 6; display: flex; align-items: center; gap: 4px; pointer-events: none; }
+
+        .target-box { position: absolute; top: 30%; left: 35%; width: 150px; height: 110px; border: 2px dashed var(--red); box-shadow: 0 0 15px var(--red); display: none; animation: flash 1s infinite alternate; z-index: 6; pointer-events: none; }
+        .hazard-tag { position: absolute; top: -20px; left: 0; background: var(--red); color: #fff; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700; padding: 2px 4px; }
+
+        .topology { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+        .topo-header { font-family: 'Orbitron', sans-serif; font-size: 0.7rem; color: var(--text-muted); letter-spacing: 1px; }
+
+        .nodes-container { display: flex; justify-content: space-between; align-items: center; padding: 0 10px; margin-top: 15px; }
+        .node-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 2; width: 60px; }
+        .hex-node { width: 48px; height: 48px; background: #050a14; border: 2px solid var(--panel-border); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .node-label { font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; color: var(--text-muted); text-align: center; font-weight: 600; }
+
+        .hex-node.active-cyan { border-color: var(--cyan); box-shadow: 0 0 20px var(--cyan); background: rgba(56, 189, 248, 0.15); transform: scale(1.1); }
+        .hex-node.active-yellow { border-color: var(--yellow); box-shadow: 0 0 20px var(--yellow); background: rgba(234, 179, 8, 0.15); transform: scale(1.1); }
+        .hex-node.active-red { border-color: var(--red); box-shadow: 0 0 25px var(--red); background: rgba(244, 63, 94, 0.2); transform: scale(1.1); }
+        .hex-node.active-green { border-color: var(--green); box-shadow: 0 0 20px var(--green); background: rgba(16, 185, 129, 0.15); transform: scale(1.1); }
+
+        .laser-track { flex-grow: 1; height: 4px; background: rgba(255,255,255,0.05); margin: -20px -10px 0 -10px; z-index: 1; position: relative; border-radius: 2px; }
+        .laser-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--purple)); box-shadow: 0 0 10px var(--cyan); transition: width 0.8s ease; }
+
+        .gauges { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+        .gauge-card { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .gauge-title { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); display: flex; justify-content: space-between; }
+        .gauge-bar-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        .gauge-bar-fill { height: 100%; width: 0%; transition: width 0.5s ease, background 0.5s ease; }
+
+        .grid-agents { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+        .agent-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; position: relative; min-height: 240px; }
+        .agent-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: transparent; border-radius: 8px 8px 0 0; }
+
+        .agent-card.cyan::before { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+        .agent-card.yellow::before { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); }
+        .agent-card.red::before { background: var(--red); box-shadow: 0 0 10px var(--red); }
+        .agent-card.green::before { background: var(--green); box-shadow: 0 0 10px var(--green); }
+
+        .agent-header { display: flex; flex-direction: column; gap: 2px; }
+        .agent-name { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; font-weight: 700; color: #fff; }
+        .agent-model { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); }
+        .badge { font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-muted); width: max-content; margin-top: 4px; border: 1px solid rgba(255,255,255,0.1); }
+
+        .code-box { background: #03060c; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.58rem; color: #cbd5e1; flex-grow: 1; white-space: pre-wrap; word-break: break-all; overflow-y: auto; }
+        .map-link { color: var(--cyan); text-decoration: underline; cursor: pointer; font-weight: bold; }
+        .map-link:hover { color: #fff; }
+
+        .console-panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; height: 140px; }
+        .console-logs { background: #03060c; border-radius: 6px; padding: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+        .log-row { display: flex; gap: 10px; }
+        .l-time { color: #475569; }
+        .l-alert { color: var(--red); font-weight: 700; }
+        .l-heal { color: var(--yellow); font-weight: 700; }
+        .l-success { color: var(--green); font-weight: 700; }
+
+        .chat-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(6px); z-index: 100; display: none; align-items: center; justify-content: center; }
+        .chat-card { background: var(--panel); border: 2px solid var(--red); border-radius: 12px; width: 460px; height: 520px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 35px rgba(244, 63, 94, 0.4); }
+        .chat-header { padding: 12px 16px; background: rgba(244, 63, 94, 0.15); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(244, 63, 94, 0.3); }
+        .chat-title { font-family: 'Orbitron', sans-serif; font-size: 0.85rem; color: var(--red); font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .chat-body { flex-grow: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #03060c; font-family: 'Inter', sans-serif; font-size: 0.78rem; }
+
+        .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; line-height: 1.35; }
+        .chat-msg.operator { background: rgba(56, 189, 248, 0.15); border: 1px solid var(--cyan); color: #e0f2fe; align-self: flex-start; }
+        .chat-msg.caller { background: rgba(244, 63, 94, 0.2); border: 1px solid var(--red); color: #ffe4e6; align-self: flex-end; }
+        .chat-msg.system { background: rgba(16, 185, 129, 0.15); border: 1px solid var(--green); color: #d1fae5; align-self: center; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; }
+        .chat-footer { padding: 10px; background: #050a14; border-top: 1px solid var(--panel-border); display: flex; gap: 8px; }
+        .chat-input { flex-grow: 1; background: #09101d; border: 1px solid var(--panel-border); border-radius: 6px; padding: 8px; color: #fff; font-size: 0.75rem; outline: none; }
+        .btn-send { background: var(--cyan); color: #000; font-weight: 700; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; }
+
+        .map-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); z-index: 101; display: none; align-items: center; justify-content: center; }
+        .map-card { background: var(--panel); border: 2px solid var(--cyan); border-radius: 12px; width: 85%; height: 80%; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 30px rgba(56, 189, 248, 0.3); }
+        .map-header { padding: 12px 18px; background: rgba(0, 0, 0, 0.5); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); }
+        .map-title { font-family: 'Orbitron', sans-serif; font-size: 0.9rem; color: var(--cyan); }
+        .btn-close { background: var(--red); color: #fff; border: none; font-weight: 700; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+
+        @keyframes flash { from { opacity: 0.4; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">PYROGUARD <span>AGENTIC OS</span></div>
+        <div class="header-actions">
+            <button class="btn-action" onclick="openChatModal()">📞 SIMULATE 911 CALL</button>
+            <button id="runBtn" class="btn-launch" onclick="executeFullEmergencyScenario()">🔥 INITIATE FULL DISPATCH</button>
+        </div>
+    </header>
+
+    <div class="grid-top">
+        <!-- Live CCTV Feed Viewport -->
+        <div class="viewport">
+            <div class="viewport-bar">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="live-dot"></span>
+                    <select id="camSelect" class="cctv-selector">
+                        <option value="fire">CAM-04: LAB-2B (FIRE MONITOR)</option>
+                    </select>
+                </div>
+                <span id="camStatus" style="color: var(--green); font-weight: bold;">LIVE FEED</span>
+            </div>
+            <div class="fire-chamber">
+                <div class="rec-tag"><span class="live-dot" style="background:#fff; width:6px; height:6px;"></span> REC</div>
+                <div class="cctv-stream-container">
+                    <video id="cctvPlayer" class="cctv-video" autoplay muted loop playsinline controls>
+                        <!-- Linked directly to your recorded local file -->
+                     <source src="fire.mp4" type="video/mp4">
+                        Your browser does not support video playback.
+                    </video>
+                </div>
+                <div class="cam-overlay"></div>
+                <div id="targetBox" class="target-box">
+                    <div class="hazard-tag">CLASS-B FIRE DETECTED</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Corrected Topology Layout -->
+        <div class="topology">
+            <div class="topo-header">AUTONOMOUS MULTI-AGENT PIPELINE TOPOLOGY</div>
+            <div class="nodes-container">
+                <div class="node-wrap">
+                    <div id="n0" class="hex-node">📞</div>
+                    <div class="node-label">0. Call Intake</div>
+                </div>
+                <div class="node-wrap">
+                    <div id="n1" class="hex-node">👁️</div>
+                    <div class="node-label">1. Vision AI</div>
+                </div>
+                <div class="node-wrap">
+                    <div id="n2" class="hex-node">📋</div>
+                    <div class="node-label">2. Coordinator</div>
+                </div>
+                <div class="node-wrap">
+                    <div id="n3" class="hex-node">🧮</div>
+                    <div class="node-label">3. Allocator</div>
+                </div>
+                <div class="node-wrap">
+                    <div id="n4" class="hex-node">🛡️</div>
+                    <div class="node-label">4. Safety Guard</div>
+                </div>
+                <div class="node-wrap">
+                    <div id="n5" class="hex-node">🚀</div>
+                    <div class="node-label">5. Dispatcher</div>
+                </div>
+            </div>
+            <div class="laser-track">
+                <div id="laserFill" class="laser-fill"></div>
+            </div>
+        </div>
+
+        <div class="gauges">
+            <div style="font-family: 'Orbitron', sans-serif; font-size: 0.7rem; color: var(--text-muted);">ENVIRONMENT TELEMETRY</div>
+
+            <div class="gauge-card">
+                <div class="gauge-title"><span>THERMAL INTENSITY</span><span id="tempVal">24°C</span></div>
+                <div class="gauge-bar-bg"><div id="tempBar" class="gauge-bar-fill" style="width: 15%; background: var(--cyan);"></div></div>
+            </div>
+
+            <div class="gauge-card">
+                <div class="gauge-title"><span>HAZARD SEVERITY INDEX</span><span id="hazardVal">LOW</span></div>
+                <div class="gauge-bar-bg"><div id="hazardBar" class="gauge-bar-fill" style="width: 10%; background: var(--green);"></div></div>
+            </div>
+
+            <div class="gauge-card">
+                <div class="gauge-title"><span>FLIGHT RESERVE MARGIN</span><span id="reserveVal">0.0%</span></div>
+                <div class="gauge-bar-bg"><div id="reserveBar" class="gauge-bar-fill" style="width: 0%; background: var(--yellow);"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-agents">
+        <div id="c0" class="agent-card">
+            <div class="agent-header">
+                <div class="agent-name">0. Voice Intake</div>
+                <div class="agent-model">911 Dispatch Speech AI</div>
+                <div id="b0" class="badge">LISTENING</div>
+            </div>
+            <div id="p0" class="code-box">// Waiting for emergency call on line 911...</div>
+        </div>
+
+        <div id="c1" class="agent-card">
+            <div class="agent-header">
+                <div class="agent-name">1. Vision Ingest</div>
+                <div class="agent-model">CCTV Vision Stream AI</div>
+                <div id="b1" class="badge">STANDBY</div>
+            </div>
+            <div id="p1" class="code-box">// Scanning live CCTV streams...</div>
+        </div>
+
+        <div id="c2" class="agent-card">
+            <div class="agent-header">
+                <div class="agent-name">2. Coordinator</div>
+                <div class="agent-model">GLM-5.2-FP8</div>
+                <div id="b2" class="badge">STANDBY</div>
+            </div>
+            <div id="p2" class="code-box">// Awaiting vision payload...</div>
+        </div>
+
+        <div id="c3" class="agent-card">
+            <div class="agent-header">
+                <div class="agent-name">3. Allocator</div>
+                <div class="agent-model">Kimi-K2.7-Code</div>
+                <div id="b3" class="badge">STANDBY</div>
+            </div>
+            <div id="p3" class="code-box">// Awaiting demand JSON...</div>
+        </div>
+
+        <div id="c4" class="agent-card">
+            <div class="agent-header">
+                <div class="agent-name">4. Safety Guard</div>
+                <div class="agent-model">Qwen3.5-397B</div>
+                <div id="b4" class="badge">STANDBY</div>
+            </div>
+            <div id="p4" class="code-box">// Awaiting flight plan...</div>
+        </div>
+
+        <div id="c5" class="agent-card">
+            <div class="agent-header">
+                <div class="agent-name">5. Dispatcher</div>
+                <div class="agent-model">Drone Fleet Control</div>
+                <div id="b5" class="badge">STANDBY</div>
+            </div>
+            <div id="p5" class="code-box">// Awaiting safety clearance...</div>
+        </div>
+    </div>
+
+    <div class="console-panel">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); font-weight: 700;">LIVE SYSTEM AUDIT & A2A LOG STREAM</div>
+        <div id="consoleLogs" class="console-logs">
+            <div class="log-row"><span class="l-time">[00:00:00]</span><span style="color: var(--purple);">[System]</span><span>System active. CCTV streaming pipeline and 911 Voice Receiver online.</span></div>
+        </div>
+    </div>
+
+    <!-- 911 Emergency Chat Modal -->
+    <div id="chatModal" class="chat-modal">
+        <div class="chat-card">
+            <div class="chat-header">
+                <div class="chat-title">🚨 911 EMERGENCY RESPONSE CHAT</div>
+                <button class="btn-close" onclick="closeChatModal()">✖</button>
+            </div>
+            <div id="chatBody" class="chat-body">
+                <div class="chat-msg system">CONNECTED TO EMERGENCY DISPATCH LINE 911</div>
+            </div>
+            <div class="chat-footer">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Type message to 911 operator..." onkeydown="if(event.key==='Enter') sendUserMessage()">
+                <button class="btn-send" onclick="sendUserMessage()">SEND</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mapModal" class="map-modal">
+        <div class="map-card">
+            <div class="map-header">
+                <div class="map-title">📍 EMERGENCY MAP LOCATION: BUILDING 3 / LAB-2B</div>
+                <button class="btn-close" onclick="closeMapModal()">CLOSE MAP ✖</button>
+            </div>
+            <iframe id="mapFrame" width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src=""></iframe>
+        </div>
+    </div>
+
+    <script>
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        function getTS() {
+            const d = new Date();
+            return d.toTimeString().split(' ')[0] + '.' + String(d.getMilliseconds()).padStart(3, '0');
+        }
+
+        function playAlarmSound() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.4);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.8);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
+
+                osc.start(now);
+                osc.stop(now + 0.9);
+            } catch (e) {}
+        }
+
+        function log(agent, msg, cls = '', color = '#fff') {
+            const logs = document.getElementById('consoleLogs');
+            const row = document.createElement('div');
+            row.className = 'log-row';
+            row.innerHTML = `<span class="l-time">[${getTS()}]</span><span style="color: ${color}; font-weight: 700;">[${agent}]</span><span class="${cls}">${msg}</span>`;
+            logs.appendChild(row);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function setAgent(num, state, payload, cls = '') {
+            const card = document.getElementById(`c${num}`);
+            card.className = `agent-card ${cls}`;
+            document.getElementById(`b${num}`).textContent = state;
+
+            const pBox = document.getElementById(`p${num}`);
+            if ((num === 0 || num === 1) && typeof payload === 'object') {
+                pBox.innerHTML = JSON.stringify(payload, null, 2).replace(
+                    `"Building 3 / Lab-2B"`,
+                    `"<span class='map-link' onclick='openMapModal()'>Building 3 / Lab-2B</span>"`
+                );
+            } else {
+                pBox.textContent = typeof payload === 'object' ? JSON.stringify(payload, null, 2) : payload;
+            }
+        }
+
+        function setNode(num, cls) {
+            document.getElementById(`n${num}`).className = `hex-node ${cls}`;
+        }
+
+        function setLaser(pct) {
+            document.getElementById('laserFill').style.width = pct + '%';
+        }
+
+        function addChatMessage(sender, text, type) {
+            const body = document.getElementById('chatBody');
+            const msg = document.createElement('div');
+            msg.className = `chat-msg ${type}`;
+            msg.innerHTML = type === 'system' ? text : `<strong>${sender}:</strong> ${text}`;
+            body.appendChild(msg);
+            body.scrollTop = body.scrollHeight;
+        }
+
+        async function openChatModal() {
+            document.getElementById('chatModal').style.display = 'flex';
+            document.getElementById('chatBody').innerHTML = '<div class="chat-msg system">CONNECTED TO EMERGENCY DISPATCH LINE 911</div>';
+
+            playAlarmSound();
+            await sleep(400);
+            addChatMessage('911 OPERATOR', '911 Emergency, what is your location and emergency?', 'operator');
+
+            await sleep(1200);
+            addChatMessage('CALLER', 'Help! Heavy fire broke out in Building 3, Lab-2B! Please send help!', 'caller');
+
+            await sleep(1000);
+            addChatMessage('911 OPERATOR', 'Stay calm! We have pinpointed Building 3 / Lab-2B. We are launching safety precautions and autonomous emergency units right now!', 'operator');
+
+            await sleep(600);
+            addChatMessage('SYSTEM', '⚠️ AUTONOMOUS MULTI-AGENT RESPONSE DISPATCHED', 'system');
+
+            simulateCall911Data();
+        }
+
+        function closeChatModal() {
+            document.getElementById('chatModal').style.display = 'none';
+        }
+
+        function sendUserMessage() {
+            const input = document.getElementById('chatInput');
+            if (input.value.trim() === '') return;
+            addChatMessage('YOU', input.value, 'caller');
+            input.value = '';
+
+            setTimeout(() => {
+                addChatMessage('911 OPERATOR', 'Emergency units and fire suppression drones are active. Remain at a safe distance!', 'operator');
+            }, 1000);
+        }
+
+        async function simulateCall911Data() {
+            setNode(0, 'active-cyan');
+            setLaser('10%');
+
+            const callData = {
+                "caller_id": "+1 (555) 019-2831",
+                "line": "911 EMERGENCY HOTLINE",
+                "speech_transcript": "Fire reported in Building 3, Lab-2B!",
+                "extracted_location": "Building 3 / Lab-2B",
+                "status": "PRECAUTIONS LAUNCHED"
+            };
+
+            setAgent(0, 'CALL_INTAKE', callData, 'cyan');
+            log('911_VoiceAgent', '📞 911 Live Chat active! Location verified: Building 3 / Lab-2B.', 'l-alert', 'var(--cyan)');
+
+            await sleep(1000);
+            triggerVisionIngest();
+        }
+
+        function triggerVisionIngest() {
+            setNode(1, 'active-cyan');
+            setLaser('25%');
+            document.getElementById('targetBox').style.display = 'block';
+            document.getElementById('camStatus').textContent = '⚠️ CRITICAL ALERT';
+            document.getElementById('camStatus').style.color = 'var(--red)';
+
+            document.getElementById('tempVal').textContent = '780°C';
+            document.getElementById('tempBar').style.width = '85%';
+            document.getElementById('tempBar').style.background = 'var(--red)';
+
+            document.getElementById('hazardVal').textContent = 'EXTREME';
+            document.getElementById('hazardBar').style.width = '95%';
+            document.getElementById('hazardBar').style.background = 'var(--red)';
+
+            const visionPayload = {
+                "event": "CLASS_B_FIRE",
+                "confidence": 0.99,
+                "cctv_feed": "CAM-04 (26.08.2026_15.16.50_REC.mp4)",
+                "location": "Building 3 / Lab-2B",
+                "temp_c": 780
+            };
+
+            setAgent(1, 'VERIFIED', visionPayload, 'cyan');
+            log('VisionAI', '📷 Live CCTV Feed verified! Flame target pinpointed in Lab-2B.', 'l-alert', 'var(--cyan)');
+        }
+
+        function openMapModal() {
+            const modal = document.getElementById('mapModal');
+            const iframe = document.getElementById('mapFrame');
+            iframe.src = "https://www.openstreetmap.org/export/embed.html?bbox=-122.42%2C37.77%2C-122.40%2C37.79&layer=mapnik&marker=37.78%2C-122.41";
+            modal.style.display = 'flex';
+        }
+
+        function closeMapModal() {
+            document.getElementById('mapModal').style.display = 'none';
+        }
+
+        async function executeFullEmergencyScenario() {
+            const btn = document.getElementById('runBtn');
+            btn.disabled = true;
+            document.getElementById('consoleLogs').innerHTML = '';
+
+            await openChatModal();
+            await sleep(2500);
+
+            // Step 2: Ground Coordinator
+            setLaser('40%');
+            setNode(2, 'active-cyan');
+            setAgent(2, 'PARSING', '// Generating demand schema...', 'cyan');
+            log('Coordinator', 'Structuring telemetry into disaster response demand...', '', 'var(--cyan)');
+            await sleep(1300);
+
+            const demandData = { "zone_id": "Lab-2B Fire", "suppressant_kg": 500, "urgency": "CRITICAL" };
+            setAgent(2, 'DEMAND_READY', demandData, 'cyan');
+
+            // Step 3: Resource Allocator
+            setLaser('60%');
+            setNode(3, 'active-yellow');
+            setAgent(3, 'PLANNING', '// Calculating payload & reserves...', 'yellow');
+            log('Allocator', 'Calculating drone suppression flight path...', '', 'var(--yellow)');
+            await sleep(1400);
+
+            const initialPlan = { "vehicle": "Heavy Drone Alpha", "foam_kg": 500, "water_reserve_pct": "12.0%" };
+            setAgent(3, 'PROPOSED', initialPlan, 'yellow');
+
+            document.getElementById('reserveVal').textContent = '12.0%';
+            document.getElementById('reserveBar').style.width = '45%';
+            document.getElementById('reserveBar').style.background = 'var(--red)';
+
+            // Step 4: Safety Guard Rejection
+            playAlarmSound();
+            setLaser('75%');
+            setNode(4, 'active-red');
+            setAgent(4, 'AUDITING', '// Auditing safety rules...', 'red');
+            log('SafetyGuard', 'Auditing proposal against flight safety thresholds...', '', 'var(--purple)');
+            await sleep(1200);
+
+            const rejectionData = { "status": "REJECTED", "violation": "Reserve fuel/water margin (12.0%) below required 20.0% threshold." };
+            setAgent(4, 'REJECTED', rejectionData, 'red');
+            log('SafetyGuard', '⚠️ REJECTED: Mandatory safety margin failure!', 'l-alert', 'var(--red)');
+
+            // Step 5: Self-Healing Loop
+            await sleep(1000);
+            log('SuperGrid', '🔄 AUTONOMOUS SELF-HEALING: Re-routing rejection criteria back to Allocator...', 'l-heal', 'var(--yellow)');
+
+            setNode(3, 'active-yellow');
+            setAgent(3, 'RE-CALCULATING', '// Fixing reserve parameters...', 'yellow');
+            await sleep(1500);
+
+            const correctedPlan = { "vehicle": "Heavy Drone Alpha", "foam_kg": 500, "water_reserve_pct": "25.0%" };
+            setAgent(3, 'RE-HEALED', correctedPlan, 'yellow');
+
+            document.getElementById('reserveVal').textContent = '25.0%';
+            document.getElementById('reserveBar').style.width = '80%';
+            document.getElementById('reserveBar').style.background = 'var(--green)';
+
+            // Step 6: Safety Guard Approval
+            setNode(4, 'active-green');
+            setAgent(4, 'APPROVED', { "status": "APPROVED", "clearance_code": "CLEAR-DISPATCH-FIRE-99" }, 'green');
+            log('SafetyGuard', '✅ SAFETY CLEARANCE ISSUED: Corrected plan verified.', 'l-success', 'var(--green)');
+            await sleep(1000);
+
+            // Step 7: Final Dispatch Execution
+            setLaser('100%');
+            setNode(5, 'active-green');
+            const dispatchData = { "target": "Lab-2B", "units_active": ["Drone-1", "Drone-2"], "eta_sec": 30 };
+            setAgent(5, 'DISPATCHED', dispatchData, 'green');
+            log('Dispatcher', '🚀 Suppression units launched! ETA 30 seconds to Lab-2B.', 'l-success', 'var(--green)');
+
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>
