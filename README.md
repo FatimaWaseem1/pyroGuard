@@ -1,5 +1,4 @@
-Crisis Command
-Crisis Command is a multi-agent emergency dispatch prototype that turns raw crisis reports into a resource plan, validates that plan against hard safety rules, and automatically requests a corrected plan when safety requirements are violated.
+pyroguard is a multi-agent emergency dispatch prototype that turns raw crisis reports into a resource plan, validates that plan against hard safety rules, and automatically requests a corrected plan when safety requirements are violated.
 The project currently uses three backend agents:
 
 Ground Coordinator — GLM-5.2
